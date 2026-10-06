@@ -85,6 +85,12 @@ class LeitorService : AccessibilityService() {
         ultimoTexto = texto
         ultimaGravacao = agora
         Registro.gravar(this, "TELA", texto)
+
+        // Nova etapa: tenta extrair uma corrida estruturada
+        ExtratorCorrida.analisar(
+            this,
+            texto
+        )
     }
 
     private fun tipo(j: AccessibilityWindowInfo?): String = when (j?.type) {
