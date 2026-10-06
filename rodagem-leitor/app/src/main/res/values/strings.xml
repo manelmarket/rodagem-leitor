@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_nome">Rodagem Leitor</string>
+    <string name="servico_nome">Rodagem Leitor</string>
+    <string name="servico_descricao">Lê apenas as telas do Uber, da 99 e do inDrive para registrar como aparecem as ofertas de corrida. Não toca em nada, não aceita e não recusa corridas. Nesta versão de diagnóstico, os textos ficam guardados só neste aparelho.</string>
+</resources>
