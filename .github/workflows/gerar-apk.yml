@@ -30,14 +30,29 @@ jobs:
           java-version: '17'
 
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
-
-
-      - name: Instalar componentes Android
+      - name: Preparar Android Command Line Tools
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "Listando ferramentas Android"
+          ls $ANDROID_SDK_ROOT/cmdline-tools
+
+          if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/16.0" ]; then
+            mv $ANDROID_SDK_ROOT/cmdline-tools/16.0 $ANDROID_SDK_ROOT/cmdline-tools/latest
+          fi
+
+
+      - name: Configurar Android SDK manualmente
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
+
+          yes | sdkmanager --licenses || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
 
       - name: Configurar Gradle
