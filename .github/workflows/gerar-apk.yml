@@ -42,9 +42,6 @@ jobs:
 
       - name: Configurar Android SDK manualmente
         run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
 
           yes | sdkmanager --licenses || true
@@ -66,7 +63,7 @@ jobs:
           CHAVE: ${{ secrets.LEITOR_KEYSTORE }}
         run: |
           if [ -z "$CHAVE" ]; then
-            echo "::error::Falta o segredo LEITOR_KEYSTORE. Cadastre em Settings > Secrets and variables"
+            echo "::error::Falta o segredo LEITOR_KEYSTORE"
             exit 1
           fi
 
@@ -78,16 +75,18 @@ jobs:
           gradle assembleRelease --no-daemon
 
 
+      - name: Verificar APK gerado
+        run: |
+          find . -name "*.apk"
+
+
       - name: Renomear APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk rodagem-leitor-${{ github.run_number }}.apk
+          cp $(find app/build -name "*.apk" | head -1) rodagem-leitor-${{ github.run_number }}.apk
 
 
-      - name: Publicar para baixar no celular
-        uses: softprops/action-gh-release@v2
+      - name: Disponibilizar APK para download
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: leitor-${{ github.run_number }}
-          name: Rodagem Leitor ${{ github.run_number }}
-          body: Baixe o arquivo APK abaixo diretamente no celular.
-          files: rodagem-leitor-${{ github.run_number }}.apk
-          make_latest: true
+          name: rodagem-leitor-apk
+          path: rodagem-leitor-${{ github.run_number }}.apk
