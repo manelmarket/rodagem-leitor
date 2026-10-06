@@ -1,9 +1,10 @@
 name: Gerar APK
 
-# Roda sozinho a cada alteração enviada, ou manualmente pela aba Actions.
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+
   workflow_dispatch:
 
 permissions:
@@ -11,52 +12,63 @@ permissions:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    runs-on: ubuntu-22.04
 
-      - name: Setup Java
-  uses: actions/setup-java@v4
-  with:
-    distribution: temurin
-    java-version: '17'
+    steps:
+
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android
-  uses: android-actions/setup-android@v3
-  with:
-    packages: |
-      platform-tools
-      platforms;android-35
-      build-tools;35.0.0
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+
 
       - name: Chave de assinatura
         env:
           CHAVE: ${{ secrets.LEITOR_KEYSTORE }}
         run: |
           if [ -z "$CHAVE" ]; then
-            echo "::error::Falta o segredo LEITOR_KEYSTORE. Cadastre em Settings > Secrets and variables > Actions."
+            echo "::error::Falta o segredo LEITOR_KEYSTORE. Cadastre em Settings > Secrets and variables"
             exit 1
           fi
           echo "$CHAVE" | base64 -d > app/leitor.jks
 
-      - name: Compilar
-        run: gradle assembleRelease --no-daemon
 
-      - name: Renomear
-        run: cp app/build/outputs/apk/release/app-release.apk rodagem-leitor-${{ github.run_number }}.apk
+      - name: Compilar
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+
+      - name: Renomear APK
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk rodagem-leitor-${{ github.run_number }}.apk
+
 
       - name: Publicar para baixar no celular
         uses: softprops/action-gh-release@v2
         with:
           tag_name: leitor-${{ github.run_number }}
-          name: Rodagem Leitor 0.1.${{ github.run_number }}
-          body: Baixe o arquivo .apk abaixo direto no celular e instale.
+          name: Rodagem Leitor ${{ github.run_number }}
+          body: Baixe o arquivo .apk abaixo diretamente no celular e instale.
           files: rodagem-leitor-${{ github.run_number }}.apk
           make_latest: true
