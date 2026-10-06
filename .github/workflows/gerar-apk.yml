@@ -7,11 +7,14 @@ on:
 
   workflow_dispatch:
 
+
 permissions:
   contents: write
 
+
 jobs:
   apk:
+
     runs-on: ubuntu-22.04
 
     steps:
@@ -29,11 +32,12 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
+
+
+      - name: Instalar componentes Android
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
 
       - name: Configurar Gradle
@@ -50,6 +54,7 @@ jobs:
             echo "::error::Falta o segredo LEITOR_KEYSTORE. Cadastre em Settings > Secrets and variables"
             exit 1
           fi
+
           echo "$CHAVE" | base64 -d > app/leitor.jks
 
 
@@ -69,6 +74,6 @@ jobs:
         with:
           tag_name: leitor-${{ github.run_number }}
           name: Rodagem Leitor ${{ github.run_number }}
-          body: Baixe o arquivo .apk abaixo diretamente no celular e instale.
+          body: Baixe o arquivo APK abaixo diretamente no celular.
           files: rodagem-leitor-${{ github.run_number }}.apk
           make_latest: true
