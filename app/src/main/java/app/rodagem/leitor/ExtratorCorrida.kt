@@ -6,7 +6,7 @@ import android.content.Context
 object ExtratorCorrida {
 
 
-    private var ultimaCorrida = ""
+    private var ultimaChave = ""
 
 
     fun analisar(
@@ -15,19 +15,20 @@ object ExtratorCorrida {
     ) {
 
 
-        val aplicativo = identificarAplicativo(texto)
-
-
         val valor = extrairValor(texto)
 
         if (valor <= 0) return
 
 
-        val origemDestino = extrairEnderecos(texto)
+        val aplicativo = identificarApp(texto)
 
-        val origem = origemDestino.first
 
-        val destino = origemDestino.second
+        val enderecos = extrairEnderecos(texto)
+
+
+        val origem = enderecos.first
+
+        val destino = enderecos.second
 
 
         if (origem.isEmpty() || destino.isEmpty()) {
@@ -44,17 +45,18 @@ object ExtratorCorrida {
                 ?: ""
 
 
+
         val distancia =
             Regex(
                 """(\d+[,.]?\d*)\s?km"""
             )
-                .findAll(texto)
-                .lastOrNull()
+                .find(texto)
                 ?.groupValues
                 ?.get(1)
                 ?.replace(",", ".")
                 ?.toDoubleOrNull()
                 ?: 0.0
+
 
 
         val tempo =
@@ -73,83 +75,95 @@ object ExtratorCorrida {
             "$aplicativo|$valor|$origem|$destino"
 
 
-        if (chave == ultimaCorrida) {
+
+        if (chave == ultimaChave) {
             return
         }
 
 
-        ultimaCorrida = chave
+        ultimaChave = chave
 
-
-
-        val corrida = Corrida(
-
-            aplicativo = aplicativo,
-
-            valor = valor,
-
-            pagamento = pagamento,
-
-            origem = origem,
-
-            destino = destino,
-
-            distanciaKm = distancia,
-
-            tempoMinutos = tempo
-
-        )
 
 
         BancoCorridas(contexto)
-            .salvar(corrida)
+            .salvar(
 
+                Corrida(
+
+                    aplicativo = aplicativo,
+
+                    valor = valor,
+
+                    pagamento = pagamento,
+
+                    origem = origem,
+
+                    destino = destino,
+
+                    distanciaKm = distancia,
+
+                    tempoMinutos = tempo
+
+                )
+
+            )
 
     }
 
 
 
-    private fun identificarAplicativo(
+    private fun identificarApp(
         texto: String
     ): String {
 
 
         return when {
 
+
             texto.contains(
                 "taxsee",
                 true
-            ) ||
+            )
+            ||
             texto.contains(
                 "maxim",
                 true
-            ) ->
+            )
+            ->
                 "Maxim"
+
 
 
             texto.contains(
                 "easymob",
                 true
-            ) ->
+            )
+            ->
                 "Easy"
+
 
 
             texto.contains(
                 "99",
                 true
-            ) ->
+            )
+            ->
                 "99"
+
 
 
             texto.contains(
                 "uber",
                 true
-            ) ->
+            )
+            ->
                 "Uber"
+
 
 
             else ->
                 "Desconhecido"
+
         }
 
     }
@@ -176,33 +190,48 @@ object ExtratorCorrida {
 
 
 
+
+
     private fun extrairEnderecos(
         texto: String
     ): Pair<String,String> {
 
 
-        val enderecos =
-            Regex(
-                """tv_main_address.*?texto:\s*(.*?)\s*\|"""
-            )
-                .findAll(texto)
-                .map {
+        val lista = mutableListOf<String>()
+
+
+        val regex = Regex(
+            """#(?:tv_main_address|tv_title_start_address|tv_title_final_address)\s*\|\s*texto:\s*(.*?)\s*\|"""
+        )
+
+
+        regex.findAll(texto)
+            .forEach {
+
+
+                val endereco =
                     it.groupValues[1]
                         .replace("🏠","")
                         .replace("🏁","")
                         .trim()
-                }
-                .toList()
 
 
-        if (enderecos.size >= 2) {
+                if(endereco.isNotEmpty())
+                    lista.add(endereco)
+
+            }
+
+
+
+        if(lista.size >= 2){
 
             return Pair(
-                enderecos[0],
-                enderecos[1]
+                lista.first(),
+                lista.last()
             )
 
         }
+
 
 
         return Pair(
@@ -211,5 +240,6 @@ object ExtratorCorrida {
         )
 
     }
+
 
 }
