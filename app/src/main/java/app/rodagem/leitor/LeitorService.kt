@@ -10,8 +10,9 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 
 /**
- * Versão de diagnóstico: só observa as telas do Uber, da 99 e do inDrive e registra
- * os textos que aparecem quando há valor, km ou minutos na tela.
+ * Versão de diagnóstico: só observa as telas dos apps de corrida ligados e registra
+ * os textos que aparecem quando há valor, km ou minutos na tela. Dessas telas, o
+ * ExtratorCorrida tira as corridas (por enquanto da Maxim e da Easy).
  * Não clica em nada, não aceita e não recusa corridas.
  */
 class LeitorService : AccessibilityService() {
@@ -86,11 +87,12 @@ class LeitorService : AccessibilityService() {
         ultimaGravacao = agora
         Registro.gravar(this, "TELA", texto)
 
-        // Nova etapa: tenta extrair uma corrida estruturada
-        ExtratorCorrida.analisar(
-            this,
-            texto
-        )
+        // tira da tela a corrida (oferta, andamento ou fim); um erro aqui não pode derrubar o leitor
+        try {
+            ExtratorCorrida.analisar(this, texto)
+        } catch (e: Exception) {
+            Registro.gravar(this, "ERRO NO EXTRATOR", "  ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     private fun tipo(j: AccessibilityWindowInfo?): String = when (j?.type) {

@@ -1,19 +1,37 @@
 package app.rodagem.leitor
 
+import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
+import android.database.DatabaseUtils
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import android.content.ContentValues
 
 
-class BancoCorridas(context: Context) :
+/** Corridas lidas, guardadas só neste aparelho. */
+class BancoCorridas private constructor(context: Context) :
 
     SQLiteOpenHelper(
         context,
         "corridas.db",
         null,
-        2
-    ) {
+        3
+    ),
+
+    Deposito {
+
+
+    companion object {
+
+        @Volatile
+        private var unico: BancoCorridas? = null
+
+        /** Um banco só para o app inteiro (a tela e o leitor usam o mesmo). */
+        fun de(ctx: Context): BancoCorridas =
+            unico ?: synchronized(this) {
+                unico ?: BancoCorridas(ctx.applicationContext).also { unico = it }
+            }
+    }
 
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -28,6 +46,8 @@ class BancoCorridas(context: Context) :
 
                 valor REAL,
 
+                valor_cobrado REAL,
+
                 pagamento TEXT,
 
                 origem TEXT,
@@ -38,15 +58,27 @@ class BancoCorridas(context: Context) :
 
                 tempo INTEGER,
 
+                embarque_km REAL,
+
+                embarque_min INTEGER,
+
                 cliente TEXT,
+
+                categoria TEXT,
+
+                codigo TEXT,
 
                 status TEXT,
 
-                data INTEGER
+                data INTEGER,
+
+                atualizado INTEGER
 
             )
             """
         )
+
+        db.execSQL("CREATE INDEX corridas_app_data ON corridas (aplicativo, data)")
 
     }
 
@@ -57,6 +89,9 @@ class BancoCorridas(context: Context) :
         newVersion: Int
     ) {
 
+        // Até a versão 2 as corridas eram lidas por regras provisórias (o valor podia vir
+        // do saldo da Maxim e o app era adivinhado pelo texto). Elas são descartadas;
+        // o botão "Reler registro" refaz tudo a partir das telas guardadas.
         db.execSQL(
             "DROP TABLE IF EXISTS corridas"
         )
@@ -67,78 +102,111 @@ class BancoCorridas(context: Context) :
 
 
 
-    fun salvar(
-        corrida: Corrida
-    ) {
-
-
-        val valores = ContentValues()
-
-
-        valores.put(
-            "aplicativo",
-            corrida.aplicativo
+    override fun recentes(aplicativo: String, desde: Long): List<Corrida> =
+        ler(
+            "aplicativo = ? AND data >= ?",
+            arrayOf(aplicativo, desde.toString()),
+            "id DESC",
+            "50"
         )
 
 
-        valores.put(
-            "valor",
-            corrida.valor
-        )
+    /** As últimas corridas lidas, de qualquer app, da mais nova para a mais antiga. */
+    fun ultimas(limite: Int): List<Corrida> =
+        ler(null, null, "data DESC, id DESC", limite.toString())
 
 
-        valores.put(
-            "pagamento",
-            corrida.pagamento
-        )
+    fun total(): Int =
+        DatabaseUtils.queryNumEntries(readableDatabase, "corridas").toInt()
 
 
-        valores.put(
-            "origem",
-            corrida.origem
-        )
+    fun apagarTudo() {
+        writableDatabase.delete("corridas", null, null)
+    }
 
 
-        valores.put(
-            "destino",
-            corrida.destino
-        )
-
-
-        valores.put(
-            "distancia",
-            corrida.distanciaKm
-        )
-
-
-        valores.put(
-            "tempo",
-            corrida.tempoMinutos
-        )
-
-
-        valores.put(
-            "cliente",
-            corrida.cliente
-        )
-
-
-        valores.put(
-            "status",
-            corrida.status
-        )
-
-
-        valores.put(
-            "data",
-            corrida.dataHora
-        )
-
-
+    override fun inserir(c: Corrida): Long =
         writableDatabase.insert(
             "corridas",
             null,
-            valores
+            valores(c)
+        )
+
+
+    override fun atualizar(c: Corrida) {
+        writableDatabase.update(
+            "corridas",
+            valores(c),
+            "id = ?",
+            arrayOf(c.id.toString())
+        )
+    }
+
+
+
+    private fun valores(c: Corrida) = ContentValues().apply {
+        put("aplicativo", c.aplicativo)
+        put("valor", c.valor)
+        put("valor_cobrado", c.valorCobrado)
+        put("pagamento", c.pagamento)
+        put("origem", c.origem)
+        put("destino", c.destino)
+        put("distancia", c.distanciaKm)
+        put("tempo", c.tempoMinutos)
+        put("embarque_km", c.embarqueKm)
+        put("embarque_min", c.embarqueMinutos)
+        put("cliente", c.cliente)
+        put("categoria", c.categoria)
+        put("codigo", c.codigo)
+        put("status", c.status)
+        put("data", c.dataHora)
+        put("atualizado", c.atualizado)
+    }
+
+
+    private fun ler(
+        onde: String?,
+        args: Array<String>?,
+        ordem: String,
+        limite: String
+    ): List<Corrida> {
+
+        val lista = mutableListOf<Corrida>()
+
+        readableDatabase.query("corridas", null, onde, args, null, null, ordem, limite).use { cur ->
+            while (cur.moveToNext()) lista.add(corrida(cur))
+        }
+
+        return lista
+
+    }
+
+
+    private fun corrida(cur: Cursor): Corrida {
+
+        fun texto(coluna: String) = cur.getString(cur.getColumnIndexOrThrow(coluna)) ?: ""
+        fun real(coluna: String) = cur.getDouble(cur.getColumnIndexOrThrow(coluna))
+        fun inteiro(coluna: String) = cur.getInt(cur.getColumnIndexOrThrow(coluna))
+        fun longo(coluna: String) = cur.getLong(cur.getColumnIndexOrThrow(coluna))
+
+        return Corrida(
+            id = longo("id"),
+            aplicativo = texto("aplicativo"),
+            valor = real("valor"),
+            valorCobrado = real("valor_cobrado"),
+            pagamento = texto("pagamento"),
+            origem = texto("origem"),
+            destino = texto("destino"),
+            distanciaKm = real("distancia"),
+            tempoMinutos = inteiro("tempo"),
+            embarqueKm = real("embarque_km"),
+            embarqueMinutos = inteiro("embarque_min"),
+            cliente = texto("cliente"),
+            categoria = texto("categoria"),
+            codigo = texto("codigo"),
+            status = texto("status"),
+            dataHora = longo("data"),
+            atualizado = longo("atualizado")
         )
 
     }

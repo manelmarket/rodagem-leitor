@@ -2,5 +2,5 @@
 <resources>
     <string name="app_nome">Rodagem Leitor</string>
     <string name="servico_nome">Rodagem Leitor</string>
-    <string name="servico_descricao">Lê apenas as telas do Uber, da 99 e do inDrive para registrar como aparecem as ofertas de corrida. Não toca em nada, não aceita e não recusa corridas. Nesta versão de diagnóstico, os textos ficam guardados só neste aparelho.</string>
+    <string name="servico_descricao">Lê apenas as telas dos apps de corrida que você ligar no Rodagem Leitor (como Uber, 99, Maxim e Easy) para registrar as ofertas e as corridas. Não toca em nada, não aceita e não recusa corridas. Nesta versão de diagnóstico, os textos e as corridas ficam guardados só neste aparelho.</string>
 </resources>

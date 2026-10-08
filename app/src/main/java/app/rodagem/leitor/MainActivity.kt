@@ -21,6 +21,10 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
 
 class MainActivity : Activity() {
 
@@ -41,6 +45,9 @@ class MainActivity : Activity() {
     private lateinit var botaoOutros: Button
     private var mostrandoOutros = false
     private lateinit var textoRegistro: TextView
+    private lateinit var textoCorridas: TextView
+    private lateinit var listaCorridas: LinearLayout
+    private val brasil = Locale("pt", "BR")
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -124,6 +131,22 @@ class MainActivity : Activity() {
             c.addView(dica("O registro inclui os endereços que aparecem nas ofertas. Ele fica só neste aparelho até você enviar."))
         })
 
+        // 5. corridas lidas
+        corpo.addView(cartao(
+            "5. Corridas lidas",
+            "O que o leitor já entendeu das telas: valor, endereços, km, cliente e em que pé está cada corrida. Por enquanto entende a Maxim (Taxsee) e a Easy. Uber e 99 ainda estão sendo mapeados.",
+        ).also { c ->
+            textoCorridas = TextView(this).apply { setTextColor(tinta); textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setPadding(0, dp(4), 0, dp(4)) }
+            c.addView(textoCorridas)
+            listaCorridas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            c.addView(listaCorridas)
+            c.addView(botao("Reler registro", false) { reler() })
+            c.addView(botao("Apagar corridas", false) {
+                BancoCorridas.de(this).apagarTudo(); atualizar(); aviso("Corridas apagadas")
+            })
+            c.addView(dica("\"Reler registro\" apaga a lista e monta de novo a partir das telas guardadas no registro. Use depois de atualizar o app."))
+        })
+
         raiz.addView(ScrollView(this).apply { addView(corpo) }, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(raiz)
     }
@@ -152,6 +175,31 @@ class MainActivity : Activity() {
         val total = Registro.total(this)
         textoRegistro.text = if (total == 0) "Nada registrado ainda."
                              else "$total registros. Último: ${Registro.ultimo(this)}"
+
+        val banco = BancoCorridas.de(this)
+        val quantas = banco.total()
+        val ultimas = banco.ultimas(20)
+        textoCorridas.text = when {
+            quantas == 0 -> "Nenhuma corrida lida ainda."
+            quantas > ultimas.size -> "$quantas corridas. As ${ultimas.size} mais recentes:"
+            else -> "$quantas corridas."
+        }
+        listaCorridas.removeAllViews()
+        ultimas.forEachIndexed { i, c ->
+            if (i > 0) listaCorridas.addView(View(this).apply { setBackgroundColor(linha) }, LinearLayout.LayoutParams(-1, dp(1)))
+            listaCorridas.addView(linhaCorrida(c))
+        }
+    }
+
+    private fun reler() {
+        aviso("Relendo o registro...")
+        Thread {
+            val n = try { ExtratorCorrida.reler(this) } catch (e: Exception) { -1 }
+            runOnUiThread {
+                atualizar()
+                aviso(if (n < 0) "Não deu para reler o registro" else "$n corridas encontradas no registro")
+            }
+        }.start()
     }
 
     private fun leitorLigado(): Boolean {
@@ -212,6 +260,60 @@ class MainActivity : Activity() {
             }
         })
     }
+
+    /** Uma corrida da lista: app e valor, status, endereços e os detalhes que a tela mostrou. */
+    private fun linhaCorrida(c: Corrida) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(0, dp(10), 0, dp(10))
+
+        val valor = when {
+            c.valor > 0 -> reais(c.valor)
+            c.valorCobrado > 0 -> reais(c.valorCobrado)
+            else -> "valor ?"
+        }
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(context).apply {
+                text = "${c.aplicativo} · $valor"; setTextColor(tinta); textSize = 16f; typeface = Typeface.DEFAULT_BOLD
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            val (corFundo, corTexto) = when (c.status) {
+                Status.CONCLUIDA -> verde to Color.WHITE
+                Status.CANCELADA -> vermelho to Color.WHITE
+                Status.OFERTA -> linha to tinta
+                else -> sinal to tinta
+            }
+            addView(TextView(context).apply {
+                text = Status.nome(c.status); setTextColor(corTexto); textSize = 12f; typeface = Typeface.DEFAULT_BOLD
+                setPadding(dp(10), dp(3), dp(10), dp(3))
+                background = GradientDrawable().apply { setColor(corFundo); cornerRadius = dp(99).toFloat() }
+            })
+        })
+
+        val rota = listOf(c.origem, c.destino).filter { it.isNotEmpty() }.joinToString("  →  ")
+        if (rota.isNotEmpty()) addView(TextView(context).apply {
+            text = rota; setTextColor(tinta); textSize = 14f; setPadding(0, dp(4), 0, 0)
+        })
+
+        val detalhes = mutableListOf(data(c.dataHora))
+        if (c.categoria.isNotEmpty()) detalhes += c.categoria
+        if (c.distanciaKm > 0) detalhes += "corrida ${distancia(c.distanciaKm)}" + (if (c.tempoMinutos > 0) " (${c.tempoMinutos} min)" else "")
+        if (c.embarqueKm > 0) detalhes += "até o passageiro ${distancia(c.embarqueKm)}" + (if (c.embarqueMinutos > 0) " (${c.embarqueMinutos} min)" else "")
+        if (c.valorCobrado > 0 && c.valor > 0) detalhes += "cobrado do passageiro ${reais(c.valorCobrado)}"
+        if (c.pagamento.isNotEmpty()) detalhes += c.pagamento
+        if (c.cliente.isNotEmpty()) detalhes += "cliente: ${c.cliente}"
+        if (c.codigo.isNotEmpty()) detalhes += "nº ${c.codigo}"
+        addView(TextView(context).apply {
+            text = detalhes.joinToString(" · "); setTextColor(cinza); textSize = 13f; setPadding(0, dp(4), 0, 0)
+        })
+    }
+
+    private fun reais(v: Double) = String.format(brasil, "R$ %.2f", v)
+
+    private fun distancia(km: Double) =
+        if (km < 1) "${(km * 1000).roundToInt()} m" else String.format(brasil, "%.1f km", km)
+
+    private fun data(ms: Long) = SimpleDateFormat("dd/MM HH:mm", brasil).format(Date(ms))
 
     private fun selo() = TextView(this).apply {
         setTextColor(Color.WHITE); textSize = 14f; typeface = Typeface.DEFAULT_BOLD
