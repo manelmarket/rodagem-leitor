@@ -15,7 +15,7 @@ class BancoCorridas private constructor(context: Context) :
         context,
         "corridas.db",
         null,
-        3
+        4
     ),
 
     Deposito {
@@ -64,6 +64,8 @@ class BancoCorridas private constructor(context: Context) :
 
                 cliente TEXT,
 
+                nota REAL DEFAULT 0,
+
                 categoria TEXT,
 
                 codigo TEXT,
@@ -89,14 +91,21 @@ class BancoCorridas private constructor(context: Context) :
         newVersion: Int
     ) {
 
-        // Até a versão 2 as corridas eram lidas por regras provisórias (o valor podia vir
-        // do saldo da Maxim e o app era adivinhado pelo texto). Elas são descartadas;
-        // o botão "Reler registro" refaz tudo a partir das telas guardadas.
-        db.execSQL(
-            "DROP TABLE IF EXISTS corridas"
-        )
+        if (oldVersion < 3) {
+            // Até a versão 2 as corridas eram lidas por regras provisórias (o valor podia vir
+            // do saldo da Maxim e o app era adivinhado pelo texto). Elas são descartadas;
+            // o botão "Reler registro" refaz tudo a partir das telas guardadas.
+            db.execSQL(
+                "DROP TABLE IF EXISTS corridas"
+            )
+            onCreate(db)
+            return
+        }
 
-        onCreate(db)
+        // Versão 4: nota do passageiro. As corridas já lidas ficam.
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE corridas ADD COLUMN nota REAL DEFAULT 0")
+        }
 
     }
 
@@ -156,6 +165,7 @@ class BancoCorridas private constructor(context: Context) :
         put("embarque_km", c.embarqueKm)
         put("embarque_min", c.embarqueMinutos)
         put("cliente", c.cliente)
+        put("nota", c.nota)
         put("categoria", c.categoria)
         put("codigo", c.codigo)
         put("status", c.status)
@@ -202,6 +212,7 @@ class BancoCorridas private constructor(context: Context) :
             embarqueKm = real("embarque_km"),
             embarqueMinutos = inteiro("embarque_min"),
             cliente = texto("cliente"),
+            nota = real("nota"),
             categoria = texto("categoria"),
             codigo = texto("codigo"),
             status = texto("status"),

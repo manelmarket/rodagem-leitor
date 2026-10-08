@@ -45,6 +45,7 @@ class MainActivity : Activity() {
     private lateinit var botaoOutros: Button
     private var mostrandoOutros = false
     private lateinit var textoRegistro: TextView
+    private lateinit var statusSemaforo: TextView
     private lateinit var textoCorridas: TextView
     private lateinit var listaCorridas: LinearLayout
     private val brasil = Locale("pt", "BR")
@@ -131,9 +132,23 @@ class MainActivity : Activity() {
             c.addView(dica("O registro inclui os endereços que aparecem nas ofertas. Ele fica só neste aparelho até você enviar."))
         })
 
-        // 5. corridas lidas
+        // 5. semáforo
         corpo.addView(cartao(
-            "5. Corridas lidas",
+            "5. Semáforo",
+            "Quando chega uma oferta da Maxim ou da Easy, aparece por cima um cartão verde (aceitar), amarelo (avaliar) ou vermelho (recusar), com o ganho por km, por hora e o lucro depois do custo do carro. É só um aviso: quem decide e toca é você.",
+        ).also { c ->
+            statusSemaforo = selo(); c.addView(statusSemaforo, 1)
+            c.addView(botao("Ajustar faixas e custo do carro", true) { startActivity(Intent(this, AjustesActivity::class.java)) })
+            c.addView(botao("Testar cartão", false) {
+                val leitor = LeitorService.instancia
+                if (leitor == null) aviso("Ligue o leitor primeiro (passo 1)")
+                else { leitor.testarSemaforo(); aviso("Olhe o cartão por cima da tela") }
+            })
+        })
+
+        // 6. corridas lidas
+        corpo.addView(cartao(
+            "6. Corridas lidas",
             "O que o leitor já entendeu das telas: valor, endereços, km, cliente e em que pé está cada corrida. Por enquanto entende a Maxim (Taxsee) e a Easy. Uber e 99 ainda estão sendo mapeados.",
         ).also { c ->
             textoCorridas = TextView(this).apply { setTextColor(tinta); textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setPadding(0, dp(4), 0, dp(4)) }
@@ -176,6 +191,10 @@ class MainActivity : Activity() {
         textoRegistro.text = if (total == 0) "Nada registrado ainda."
                              else "$total registros. Último: ${Registro.ultimo(this)}"
 
+        val semaforoLigado = Ajustes.ligado(this)
+        pintarSelo(statusSemaforo, semaforoLigado && ligado, "Semáforo ligado",
+            if (semaforoLigado) "Semáforo espera o leitor ligar" else "Semáforo desligado")
+
         val banco = BancoCorridas.de(this)
         val quantas = banco.total()
         val ultimas = banco.ultimas(20)
@@ -185,9 +204,10 @@ class MainActivity : Activity() {
             else -> "$quantas corridas."
         }
         listaCorridas.removeAllViews()
+        val regras = Ajustes.regras(this)
         ultimas.forEachIndexed { i, c ->
             if (i > 0) listaCorridas.addView(View(this).apply { setBackgroundColor(linha) }, LinearLayout.LayoutParams(-1, dp(1)))
-            listaCorridas.addView(linhaCorrida(c))
+            listaCorridas.addView(linhaCorrida(c, regras))
         }
     }
 
@@ -261,8 +281,8 @@ class MainActivity : Activity() {
         })
     }
 
-    /** Uma corrida da lista: app e valor, status, endereços e os detalhes que a tela mostrou. */
-    private fun linhaCorrida(c: Corrida) = LinearLayout(this).apply {
+    /** Uma corrida da lista: app e valor, status, endereços, os detalhes que a tela mostrou e o semáforo. */
+    private fun linhaCorrida(c: Corrida, regras: Regras) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(0, dp(10), 0, dp(10))
 
@@ -306,6 +326,25 @@ class MainActivity : Activity() {
         addView(TextView(context).apply {
             text = detalhes.joinToString(" · "); setTextColor(cinza); textSize = 13f; setPadding(0, dp(4), 0, 0)
         })
+
+        // o que o semáforo diria desta corrida com as regras de agora
+        if (c.valor > 0 || c.valorCobrado > 0) {
+            val a = Avaliador.avaliar(c, regras)
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(6), 0, 0)
+                addView(TextView(context).apply {
+                    text = Semaforo.rotulo(a.cor); setTextColor(Semaforo.textoSobre(a.cor)); textSize = 11f; typeface = Typeface.DEFAULT_BOLD
+                    setPadding(dp(8), dp(2), dp(8), dp(2))
+                    background = GradientDrawable().apply { setColor(Semaforo.corDe(a.cor)); cornerRadius = dp(99).toFloat() }
+                })
+                addView(TextView(context).apply {
+                    text = Semaforo.numeros(a) + if (a.motivos.isEmpty()) "" else "\n" + Semaforo.motivos(a)
+                    setTextColor(tinta); textSize = 13f; setPadding(dp(8), 0, 0, 0)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+            })
+        }
     }
 
     private fun reais(v: Double) = String.format(brasil, "R$ %.2f", v)

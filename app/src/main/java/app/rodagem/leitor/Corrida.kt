@@ -34,6 +34,9 @@ data class Corrida(
 
     val cliente: String = "",
 
+    /** Nota do passageiro, quando a oferta mostra (Easy). 0 = não mostrou. */
+    val nota: Double = 0.0,
+
     val categoria: String = "",
 
     /** Número do pedido no app (Easy: OS). Vazio quando o app não mostra. */

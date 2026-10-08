@@ -25,6 +25,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".AjustesActivity"
+            android:exported="false"
+            android:label="Semáforo"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".LeitorService"
             android:exported="true"

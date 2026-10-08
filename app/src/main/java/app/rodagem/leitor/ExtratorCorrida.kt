@@ -34,7 +34,9 @@ object ExtratorCorrida {
         /** Aviso sem endereço nem número: vale para a última corrida em andamento do app. */
         val ultimaAtiva: Boolean = false,
         /** Histórico: só vale para corridas lidas até esta hora. */
-        val ateData: Long = 0L
+        val ateData: Long = 0L,
+        /** Oferta aberta na tela, esperando o motorista decidir: é ela que vai para o semáforo. */
+        val destaque: Boolean = false
     )
 
     private const val MAXIM = "com.taxsee.driver"
@@ -116,6 +118,10 @@ object ExtratorCorrida {
 
     // ---------- leitura das telas ----------
 
+    /** A oferta aberta na tela agora (para o semáforo), ou null se não houver nenhuma. */
+    fun destaque(dump: String, agora: Long): Corrida? =
+        extrair(dump, agora).firstOrNull { it.destaque }?.corrida
+
     fun extrair(dump: String, agora: Long): List<Leitura> {
         val leituras = mutableListOf<Leitura>()
         for (janela in Tela.ler(dump).janelas) {
@@ -179,7 +185,8 @@ object ExtratorCorrida {
                         status = if (emAndamento) statusMaxim(j.texto("title")) else Status.OFERTA,
                         dataHora = agora,
                         atualizado = agora
-                    )
+                    ),
+                    destaque = !emAndamento
                 )
             )
         }
@@ -278,6 +285,7 @@ object ExtratorCorrida {
             var c = Corrida(
                 aplicativo = app,
                 valor = valor,
+                nota = j.texto("txtAvaliacaoMedia").replace(',', '.').toDoubleOrNull() ?: 0.0,
                 categoria = j.texto("txtTag"),
                 codigo = numero(j.texto("txtOS")),
                 dataHora = agora,
@@ -293,7 +301,7 @@ object ExtratorCorrida {
                     c = c.copy(destino = lugar, distanciaKm = km(info), tempoMinutos = minutos(info))
                 }
             }
-            return listOf(Leitura(c))
+            return listOf(Leitura(c, destaque = true))
         }
 
         val os = numero(j.texto("txtNumOS"))
@@ -403,6 +411,7 @@ object ExtratorCorrida {
             embarqueKm = if (a.embarqueKm > 0) a.embarqueKm else b.embarqueKm,
             embarqueMinutos = if (a.embarqueMinutos > 0) a.embarqueMinutos else b.embarqueMinutos,
             cliente = a.cliente.ifEmpty { b.cliente },
+            nota = if (a.nota > 0) a.nota else b.nota,
             categoria = a.categoria.ifEmpty { b.categoria },
             codigo = a.codigo.ifEmpty { b.codigo },
             status = Status.avancar(a.status, b.status)
